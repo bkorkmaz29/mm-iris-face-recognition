@@ -1,6 +1,11 @@
-from functions.iris.extractFeature import extractFeature
-from functions.iris.enroll import enroll, pool_calHammingDist, pool_extract_feature
-import cv2 
+from functions.iris.iris_extraction import extractFeature
+from functions.iris.iris_enroll import enroll, pool_calHammingDist, pool_extract_feature
+from functions.face.face_enroll import enroll_face
+from functions.face.face_extraction import face_encodings
+from functions.face.face_detection import load_image_file
+from functions.face.face_matching import matching, face_distance
+from cv2 import imread, imshow, waitKey
+import cv2
 import argparse, os
 from glob import glob
 from tqdm import tqdm
@@ -11,13 +16,15 @@ import glob
 import numpy as np
 import random
 from itertools import repeat
-from fnc.matching import matchingPool
+from functions.iris.iris_matching import matchingPool
+from functions.face.face_matching import matching
 from os import listdir
+import scipy.io as sio
 N_IMAGES = 4
 
 if __name__ == '__main__':
-    data_dir = "CASIA1/"
-    temp_dir = "C:/Users/BK/Desktop/b/temp/"
+    data_dir = "data/CASIA1/"
+    temp_dir = "C:/Users/BK/Documents/GitHub/mm-iris-face-recognition/data/templates"
     '''
     start = time()
 
@@ -39,15 +46,68 @@ if __name__ == '__main__':
 
     end = time()
     print('\n>>> Enrollment time: {} [s]\n'.format(end-start))
-   '''
+   
+    '''
+   
+    data_di = "data/YALE"
+    temp_di = "C:/Users/BK/Documents/GitHub/mm-iris-face-recognition/data/tempr/"
+    
+    '''
 
+    # Check the existence of temp_dir
+    if not os.path.exists(temp_di):
+        print("makedirs", temp_di)
+        os.makedirs(temp_di)
 
-    file = "CASIA1/009/1/009_1_1.bmp"
+    print(os.path.join(data_di, "subject*.normal"))
+    # Get list of files for enrolling template, just "xxx_1_x.jpg" files are selected
+    files = glob.glob(os.path.join(data_di, "subject*.normal"))
+    n_files = len(files)
+    print("Number of files for enrolling:", n_files)
+    # Parallel pools to enroll templates
+    
+    print("Start enrolling...")
+
+  
+    for file in files:
+        arr = load_image_file(file)
+
+        enroll_face(arr, file)
+    
+    '''
+    
+    face = load_image_file("C:/Users/BK/Documents/GitHub/mm-iris-face-recognition/data/YALE/subject05.happy")
+    face_encoding = face_encodings(face)
+    files = glob.glob(os.path.join(temp_di, "subject*.normal.mat"))
+    
+    
+    for file in files:
+        basename = os.path.basename(file)
+        data_template = sio.loadmat('%s%s'% (temp_di, basename))
+        faces = data_template['features']
+        res = face_distance(faces, face_encoding)
+        print(res)
+        
+     
+    
+    
+    '''
+        pools = Pool(processes=cpu_count())
+    for _ in tqdm(pools.imap_unordered(enroll_face, files), total=n_files):
+        pass
+    
+    file = "data/YALE/subject01.normal.jpg"
+    arr = load_image_file(file)
+    
+    encodes = face_encodings(arr)
+    print(encodes)
+   
+    file = "data/CASIA1/009/1/009_1_1.bmp"
     start = time()
     print('>>> Start verifying {}\n'.format(file))
     template, mask, file = extractFeature(file)
     
-    def match(template_extr, mask_extr, file, threshold=0.38):
+    def match_iris(template_extr, mask_extr, file, threshold=0.38):
     # Get the number of accounts in the database
 
         # Use all cores to calculate Hamming distances
@@ -80,9 +140,11 @@ if __name__ == '__main__':
             ind_sort = np.argsort(hm_dists)
             return [filenames[idx] for idx in ind_sort]
 
-  
-    result = match(template, mask, temp_dir, 0.38)
+
+        
+        
+
+
+    result = match_iris(template, mask, temp_dir, 0.38)
     print(result)
-  
-
-
+    '''
