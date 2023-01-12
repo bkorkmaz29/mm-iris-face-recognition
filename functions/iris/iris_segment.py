@@ -3,7 +3,7 @@ from functions.iris.iris_boundary import searchInnerBound, searchOuterBound
 from functions.iris.iris_line import findline, linecoords
 import multiprocessing as mp
 
-def segment(eyeim, eyelashes_thres=80, use_multiprocess=True):
+def segment(eyeim, eyelashes_thres=80, use_multiprocess=False):
 	# Find the iris boundary by Daugman's intefro-differential
 	rowp, colp, rp = searchInnerBound(eyeim)
 	row, col, r = searchOuterBound(eyeim, rowp, colp, rp)

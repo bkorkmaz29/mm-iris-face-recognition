@@ -3,22 +3,20 @@ from functions.iris.iris_segment import segment
 from functions.iris.iris_normalize import normalize
 from functions.iris.iris_encode import encode
 
-# Segmentation parameters
-eyelashes_thres = 80
+def iris_extract(im_filename):  
+    # Normalisation parameters
+	radial_res = 20
+	angular_res = 240
+	eyelashes_thres = 80
+	# Feature encoding parameters
+	minWaveLength = 18
+	mult = 1
+	sigmaOnf = 0.5
 
-# Normalisation parameters
-radial_res = 20
-angular_res = 240
-
-# Feature encoding parameters
-minWaveLength = 18
-mult = 1
-sigmaOnf = 0.5
-
-def iris_extract(im_filename, eyelashes_thres=80, use_multiprocess=False):
 	# Perform segmentation
+ 
 	im = imread(im_filename, 0)
-	ciriris, cirpupil, imwithnoise = segment(im, eyelashes_thres, use_multiprocess)
+	ciriris, cirpupil, imwithnoise = segment(im, eyelashes_thres, use_multiprocess=False)
 
 	# Perform normalization
 	polar_array, noise_array = normalize(imwithnoise, ciriris[1], ciriris[0], ciriris[2],

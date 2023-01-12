@@ -196,16 +196,6 @@ def hysthresh(im, T1, T2):
     for k in range(npix):
         bw[pix[k]] = -1         # Mark points as edges
 
-    # Pre-compute an array, O, of index offset values that correspond to the eight
-    # surrounding pixels of any point. Note that the image was transformed into
-    # a column vector, so if we reshape the image back to a square the indices
-    # surrounding a pixel with index, n, will be:
-    #              n-rows-1   n-1   n+rows-1
-    #
-    #               n-rows     n     n+rows
-    #
-    #              n-rows+1   n+1   n+rows+1
-
     O = np.array([-1, 1, -rows - 1, -rows, -rows + 1, rows - 1, rows, rows + 1])
 
     while stp != 0:  # While the stack is not empty

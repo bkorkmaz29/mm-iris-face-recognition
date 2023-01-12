@@ -63,6 +63,7 @@ def shiftbits(template, noshifts):
 
 def matchingPool(file_temp_name, template_extr, mask_extr, temp_dir):
     # Load each account
+    print(file_temp_name)
     idx = int(re.search(r'\d+', file_temp_name).group())
     temp_name = temp_dir + str(idx) + "/i" + file_temp_name + ".mat"
     data_template = sio.loadmat(temp_name)

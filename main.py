@@ -1,6 +1,6 @@
 from functions.iris.iris_extraction import extractFeature
-from functions.iris.iris_enroll import enroll, pool_calHammingDist, pool_extract_feature
-from functions.face.face_enroll import enroll_face
+from functions.iris.iris_add import enroll, pool_calHammingDist, pool_extract_feature
+from functions.face.face_add import enroll_face
 from functions.face.face_extraction import face_encodings
 from functions.face.face_detection import load_image_file
 from functions.face.face_matching import matching, face_distance
