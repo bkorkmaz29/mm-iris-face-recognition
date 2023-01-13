@@ -1,6 +1,6 @@
 import numpy as np
 import dlib
-from cv2 import imread, imshow
+
 from pkg_resources import resource_filename
 from functions.face.face_detection import _raw_face_locations
 

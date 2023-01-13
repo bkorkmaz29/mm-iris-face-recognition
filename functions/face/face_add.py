@@ -4,14 +4,11 @@ import PIL.Image
 import numpy as np
 from scipy.io import savemat
 
-DATA_DIR = "data/fusion/"
-
-
-def face_add(dir, idx):
+def face_add(dir, idx, data_dir):
     im = PIL.Image.open(dir)
     im = im.convert('RGB')
     image = np.array(im)
     features = face_encodings(image)
     basename = idx + "/f" + idx
-    out_file = DATA_DIR + basename + ".mat"
+    out_file = data_dir + basename + ".mat"
     savemat(out_file, mdict={'features': features})

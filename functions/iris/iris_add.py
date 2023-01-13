@@ -1,12 +1,10 @@
-from functions.iris.iris_extraction import iris_extract
-from functions.iris.iris_matching import calHammingDist
-
 from scipy.io import savemat
 
-DATA_DIR = "data/fusion/"
+from functions.iris.iris_extraction import iris_extract
 
-def iris_add(dir, idx):
+
+def iris_add(dir, idx, data_dir):
     template, mask, _ = iris_extract(dir)
     basename = idx + "/i" + idx
-    out_file = DATA_DIR + basename + ".mat"
+    out_file = data_dir + basename + ".mat"
     savemat(out_file, mdict={'template': template, 'mask': mask})
