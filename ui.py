@@ -2,12 +2,12 @@ import PySimpleGUI as sg
 import numpy as np
 import os
 
-from controllers import on_rec
+from controllers import on_rec, on_add
 
 
 def main():
 
-    sg.theme('BrightColors')
+    sg.theme('SandyBeach')
 
     main_layout = [
        [sg.Image(filename='cover.png', key='image')]
@@ -25,9 +25,9 @@ def main():
     add_layout = [
         [sg.Text('Add User', size=(40, 1), justification='center', font='Helvetica 20')],
         [sg.Text('Name'), sg.InputText()],
-        [sg.Text('Face File'), sg.In(size=(25,1), enable_events=True ,key='-FACEFOLDER-'), sg.FolderBrowse()],
-        [sg.Text('Iris File'), sg.In(size=(25,1), enable_events=True ,key='-IRISFOLDER-'), sg.FolderBrowse()],
-        [sg.Submit(), sg.Cancel()]
+        [sg.Text('Face File'), sg.In(size=(25,1), enable_events=True ,key='-FACEFILE2-'), sg.FileBrowse()],
+        [sg.Text('Iris File'), sg.In(size=(25,1), enable_events=True ,key='-IRISFILE2-'), sg.FileBrowse()],
+        [sg.Button('Add')]
     ]
 
     
@@ -56,12 +56,14 @@ def main():
      
         elif event == 'Search':
                 on_rec(values["-FACEFILE-"], values["-IRISFILE-"]) 
-               
-                            
+        
+
+                                     
         elif event == 'Add User':
             window['main'].update(visible=False)
             window['rec'].update(visible=False) 
             window['add'].update(visible=True)
 
-        
+        elif event == 'Add':
+            on_add(values["-FACEFILE2-"], values["-IRISFILE2-"]) 
 main()
