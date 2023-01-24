@@ -1,7 +1,7 @@
 import os
 from glob import glob
 from cv2 import imencode
-from functions.multimodal.fusion_score import get_fusion_scores, load_image_file
+from functions.multimodal.fusion_score import get_fusion_scores
 from functions.face.face_add import face_add
 from functions.iris.iris_add import iris_add
 from PIL import Image

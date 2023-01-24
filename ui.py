@@ -6,7 +6,7 @@ import os
 from controllers import on_rec, on_add, get_image
  
  
-def main():
+def ui():
  
     sg.theme('BlueMono')
  
@@ -73,5 +73,3 @@ def main():
             text_elem.update(values['-NAME-'])
             on_add(values["-FACEADD-"], values["-IRISADD-"])
  
- 
-main()
