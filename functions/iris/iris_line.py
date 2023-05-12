@@ -2,6 +2,7 @@ import numpy as np
 from scipy.ndimage import convolve
 from skimage.transform import radon
 
+
 def findline(img):
     # Pre-processing
     I2, orient = canny(img, 2, 0, 1)
@@ -34,12 +35,13 @@ def findline(img):
     lines = np.vstack([np.cos(t), np.sin(t), -r]).transpose()
     cx = img.shape[1] / 2 - 1
     cy = img.shape[0] / 2 - 1
-    lines[:, 2] = lines[:,2] - lines[:,0]*cx - lines[:,1]*cy
+    lines[:, 2] = lines[:, 2] - lines[:, 0]*cx - lines[:, 1]*cy
     return lines
+
 
 def linecoords(lines, imsize):
     xd = np.arange(imsize[1])
-    yd = (-lines[0,2] - lines[0,0] * xd) / lines[0,1]
+    yd = (-lines[0, 2] - lines[0, 0] * xd) / lines[0, 1]
 
     coords = np.where(yd >= imsize[0])
     coords = coords[0]
@@ -52,23 +54,25 @@ def linecoords(lines, imsize):
     y = yd
     return x, y
 
-def canny(im, sigma, vert, horz):
-    def fspecial_gaussian(shape=(3, 3), sig=1):
-        m, n = [(ss - 1) / 2 for ss in shape]
-        y, x = np.ogrid[-m:m + 1, -n:n + 1]
-        f = np.exp(-(x * x + y * y) / (2 * sig * sig))
-        f[f < np.finfo(f.dtype).eps * f.max()] = 0
-        sum_f = f.sum()
-        if sum_f != 0:
-            f /= sum_f
-        return f
 
-    hsize = [6 * sigma + 1, 6 * sigma + 1]  # The filter size
-    gaussian = fspecial_gaussian(hsize, sigma)
-    im = convolve(im, gaussian, mode='constant')  # Smoothed image
+def fspecial_gaussian(shape=(3, 3), sig=1):
+    m, n = [(ss - 1) / 2 for ss in shape]
+    y, x = np.ogrid[-m:m + 1, -n:n + 1]
+    f = np.exp(-(x * x + y * y) / (2 * sig * sig))
+    f[f < np.finfo(f.dtype).eps * f.max()] = 0
+    sum_f = f.sum()
+    if sum_f != 0:
+        f /= sum_f
+    return f
+
+
+def canny(im, sigma, vert, horz):
+    filter_size = [6 * sigma + 1, 6 * sigma + 1]
+    gaussian = fspecial_gaussian(filter_size, sigma)
+    im = convolve(im, gaussian, mode='constant')
     rows, cols = im.shape
 
-    h = np.concatenate([im[:, 1:cols], np.zeros([rows,1])], axis=1) - \
+    h = np.concatenate([im[:, 1:cols], np.zeros([rows, 1])], axis=1) - \
         np.concatenate([np.zeros([rows, 1]), im[:, 0: cols - 1]], axis=1)
 
     v = np.concatenate([im[1: rows, :], np.zeros([1, cols])], axis=0) - \
@@ -76,13 +80,16 @@ def canny(im, sigma, vert, horz):
 
     d11 = np.concatenate([im[1:rows, 1:cols], np.zeros([rows - 1, 1])], axis=1)
     d11 = np.concatenate([d11, np.zeros([1, cols])], axis=0)
-    d12 = np.concatenate([np.zeros([rows-1, 1]), im[0:rows - 1, 0:cols - 1]], axis=1)
+    d12 = np.concatenate(
+        [np.zeros([rows-1, 1]), im[0:rows - 1, 0:cols - 1]], axis=1)
     d12 = np.concatenate([np.zeros([1, cols]), d12], axis=0)
     d1 = d11 - d12
 
-    d21 = np.concatenate([im[0:rows - 1, 1:cols], np.zeros([rows - 1, 1])], axis=1)
+    d21 = np.concatenate(
+        [im[0:rows - 1, 1:cols], np.zeros([rows - 1, 1])], axis=1)
     d21 = np.concatenate([np.zeros([1, cols]), d21], axis=0)
-    d22 = np.concatenate([np.zeros([rows - 1, 1]), im[1:rows, 0:cols - 1]], axis=1)
+    d22 = np.concatenate(
+        [np.zeros([rows - 1, 1]), im[1:rows, 0:cols - 1]], axis=1)
     d22 = np.concatenate([d22, np.zeros([1, cols])], axis=0)
     d2 = d21 - d22
 
@@ -98,6 +105,7 @@ def canny(im, sigma, vert, horz):
 
     return gradient, orient
 
+
 def adjgamma(im, g):
     newim = im
     newim = newim - np.min(newim)
@@ -105,19 +113,23 @@ def adjgamma(im, g):
     newim = newim ** (1 / g)  # Apply gamma function
     return newim
 
+
 def nonmaxsup(in_img, orient, radius):
-    # Preallocate memory for output image for speed
     rows, cols = in_img.shape
     im_out = np.zeros([rows, cols])
     iradius = np.ceil(radius).astype(int)
 
     # Pre-calculate x and y offsets relative to centre pixel for each orientation angle
-    angle = np.arange(181) * np.pi / 180  # Angles in 1 degree increments (in radians)
-    xoff = radius * np.cos(angle)  # x and y offset of points at specified radius and angle
+    # Angles in 1 degree increments (in radians)
+    angle = np.arange(181) * np.pi / 180
+    # x and y offset of points at specified radius and angle
+    xoff = radius * np.cos(angle)
     yoff = radius * np.sin(angle)  # from each reference position
 
-    hfrac = xoff - np.floor(xoff)  # Fractional offset of xoff relative to integer location
-    vfrac = yoff - np.floor(yoff)  # Fractional offset of yoff relative to integer location
+    # Fractional offset of xoff relative to integer location
+    hfrac = xoff - np.floor(xoff)
+    # Fractional offset of yoff relative to integer location
+    vfrac = yoff - np.floor(yoff)
 
     orient = np.fix(orient)
 
@@ -177,6 +189,7 @@ def nonmaxsup(in_img, orient, radius):
 
     return im_out
 
+
 def hysthresh(im, T1, T2):
     # Pre-compute some values for speed and convenience
     rows, cols = im.shape
@@ -185,7 +198,7 @@ def hysthresh(im, T1, T2):
     rp1 = rows + 1
 
     bw = im.ravel()  # Make image into a column vector
-    pix = np.where(bw > T1) # Find indices of all pixels with value > T1
+    pix = np.where(bw > T1)  # Find indices of all pixels with value > T1
     pix = pix[0]
     npix = pix.size         # Find the number of pixels with value > T1
 
@@ -196,7 +209,8 @@ def hysthresh(im, T1, T2):
     for k in range(npix):
         bw[pix[k]] = -1         # Mark points as edges
 
-    O = np.array([-1, 1, -rows - 1, -rows, -rows + 1, rows - 1, rows, rows + 1])
+    O = np.array([-1, 1, -rows - 1, -rows, -rows +
+                 1, rows - 1, rows, rows + 1])
 
     while stp != 0:  # While the stack is not empty
         v = int(stack[stp-1])  # Pop next index off the stack
@@ -216,4 +230,3 @@ def hysthresh(im, T1, T2):
     bw = (bw == -1)  # Finally zero out anything that was not an edge
     bw = np.reshape(bw, [rows, cols])  # Reshape the image
     return bw
-

@@ -51,7 +51,7 @@ def searchInnerBound(img):
     hs = ContourIntegralCircular(img, y, x, r, angs)
 
     # Hough Space Partial Derivative R
-    
+
     hspdr = hs - hs[:, :, np.insert(np.arange(hs.shape[2]-1), 0, 0)]
 
     # Bluring
@@ -68,15 +68,12 @@ def searchInnerBound(img):
 
 
 def searchOuterBound(img, inner_y, inner_x, inner_r):
-    # Maximum displacement 15# (Daugman 2004)
+    # Maximum displacement
     maxdispl = np.round(inner_r*0.15).astype(int)
 
-    # 0.1 - 0.8 (Daugman 2004)
+    # 0.1 - 0.8
     minrad = np.round(inner_r/0.8).astype(int)
     maxrad = np.round(inner_r/0.3).astype(int)
-
-    # # Hough Space (y,x,r)
-    # hs = np.zeros([2*maxdispl, 2*maxdispl, maxrad-minrad])
 
     # Integration region, avoiding eyelids
     intreg = np.array([[2/6, 4/6], [8/6, 10/6]]) * np.pi
@@ -132,7 +129,6 @@ def ContourIntegralCircular(imagen, y_0, x_0, r, angs):
     ind = np.where(x >= imagen.shape[1])
     x[ind] = imagen.shape[1] - 1
 
-    # Return
     hs = imagen[y, x]
     hs = np.sum(hs, axis=0)
     return hs.astype(float)
