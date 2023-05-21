@@ -2,10 +2,10 @@ import numpy as np
 from functions.iris.iris_boundary import searchInnerBound, searchOuterBound
 from functions.iris.iris_line import findline, linecoords
 import multiprocessing as mp
+import cv2
 
 
-def segment(eye_image, eyelashes_thres):
-    # Find the iris boundary by Daugman's intefro-differential
+def segment(eye_image, eyelash_threshold):
     rowp, colp, rp = searchInnerBound(eye_image)
     row, col, r = searchOuterBound(eye_image, rowp, colp, rp)
 
@@ -20,7 +20,7 @@ def segment(eye_image, eyelashes_thres):
     iris_circle = [row, col, r]
 
     # Find top and bottom eyelid
-    imsz = eye_image.shape
+    image_shape = eye_image.shape
     irl = np.round(row - r).astype(int)
     iru = np.round(row + r).astype(int)
     icl = np.round(col - r).astype(int)
@@ -29,21 +29,19 @@ def segment(eye_image, eyelashes_thres):
         irl = 0
     if icl < 0:
         icl = 0
-    if iru >= imsz[0]:
-        iru = imsz[0] - 1
-    if icu >= imsz[1]:
-        icu = imsz[1] - 1
+    if iru >= image_shape[0]:
+        iru = image_shape[0] - 1
+    if icu >= image_shape[1]:
+        icu = image_shape[1] - 1
     iris_image = eye_image[irl: iru + 1, icl: icu + 1]
 
-    mask_top = findTopEyelid(imsz, iris_image, irl, icl, rowp, rp)
-    mask_bot = findBottomEyelid(imsz, iris_image, rowp, rp, irl, icl)
-
-    # Mask the eye image, noise region is masked by NaN value
+    mask_top = findTopEyelid(image_shape, iris_image, irl, icl, rowp, rp)
+    mask_bottom = findBottomEyelid(image_shape, iris_image, rowp, rp, irl, icl)
+    # Mask the eye image
     img_noise = eye_image.astype(float)
-    img_noise = img_noise + mask_top + mask_bot
-
+    img_noise = eye_image + mask_top + mask_bottom
     # Eliminate eyelashes by threshold
-    ref = eye_image < eyelashes_thres
+    ref = eye_image < eyelash_threshold
     coords = np.where(ref == 1)
     img_noise[coords] = np.nan
 

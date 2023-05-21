@@ -30,8 +30,7 @@ def ui():
                       size=(25, 1), enable_events=True, key='-IRISREC-'), sg.FileBrowse()],
                   [sg.Button('Search')]], border_width=5, element_justification='center',  key='-FRAME')],
         [sg.Frame('', [
-            [sg.Text('', font='Helvetica 20', size=(40, 1),
-                     justification='center', background_color="Ivory", key='-TEXTADD-')],
+
             [sg.Text("", background_color='Ivory', key='-TEXTSEARCHED-'), sg.Image(filename='', key='-FACEIMAGESEARCH-'),
              sg.Image(filename='', key='-IRISIMAGESEARCH-'), ],
             [sg.Text("", background_color='Ivory', key='-TEXTFOUND-'), sg.Image(filename='', key='-FACEIMAGEFOUND-'),
@@ -43,15 +42,16 @@ def ui():
     ]
 
     add_layout = [
-        [sg.Text('Add User', size=(80, 1),
+        [sg.Text('Enroll', size=(80, 1),
                  justification='center', font='Helvetica 20')],
         [sg.Frame("", [[sg.Text("", size=(40, 1))],
-
-                  [sg.Text('Face File'), sg.In(
-                      size=(25, 1), enable_events=True, key='-FACEADD-'), sg.FileBrowse()],
-                  [sg.Text('Iris File'), sg.In(
-                      size=(25, 1), enable_events=True, key='-IRISADD-'), sg.FileBrowse()],
-                  [sg.Button('Add')]], border_width=5, element_justification='center',  key='-FRAME')],
+                       [sg.Text('Name:'),
+                       sg.Input(key='-NAMEADD-')],
+                       [sg.Text('Face File'), sg.In(
+                           size=(25, 1), enable_events=True, key='-FACEADD-'), sg.FileBrowse()],
+                       [sg.Text('Iris File'), sg.In(
+                           size=(25, 1), enable_events=True, key='-IRISADD-'), sg.FileBrowse()],
+                       [sg.Button('Enroll')]], border_width=5, element_justification='center',  key='-FRAME')],
         [sg.Text("", size=(40, 2), background_color='Ivory')],
         [sg.Frame('', [
             [sg.Text('', font='Helvetica 20', size=(40, 1),
@@ -134,13 +134,17 @@ def ui():
                 text_elem_search.update("Searched:")
                 text_elem_found.update("Found:   ")
 
-        elif event == 'Add':
+        elif event == 'Enroll':
             face_img = get_image(values["-FACEADD-"], 1)
             iris_img = get_image(values["-IRISADD-"], 1)
             face_elem_add.update(data=face_img)
             iris_elem_add.update(data=iris_img)
-            id = on_add(values["-FACEADD-"], values["-IRISADD-"])
-            text_elem_add.update("Added as " + id)
+            id = on_add(values["-FACEADD-"],
+                        values["-IRISADD-"], values["-NAMEADD-"])
+            if id == 0:
+                text_elem_add.update("No face detected")
+            else:
+                text_elem_add.update("Added as " + id)
             refresh_folder_list(window)
 
         elif event == 'Display':

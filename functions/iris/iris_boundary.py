@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import signal
+import cv2
 
 
 def searchInnerBound(img):
@@ -9,7 +10,7 @@ def searchInnerBound(img):
     sect = X/4 		# Width of the external margin for which search is excluded
     minrad = 10
     maxrad = sect*0.8
-    jump = 4 		# Precision of the coarse search, in pixels
+    jump = 1 		# Precision of the coarse search, in pixels
 
     # Hough Space (y,x,r)
     sz = np.array([np.floor((Y-2*sect)/jump),
@@ -67,13 +68,42 @@ def searchInnerBound(img):
     return inner_y, inner_x, inner_r
 
 
+def searchInnerBound2(img):
+
+    blur = cv2.GaussianBlur(img, (5, 5), 0)
+    # Apply adaptive threshold to enhance the edges
+    thresh = cv2.adaptiveThreshold(
+        blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+
+    # Apply morphological operations to remove small objects and fill in gaps
+    kernel = np.ones((3, 3), np.uint8)
+    closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, kernel)
+
+    # Perform edge detection
+    edges = cv2.Canny(opening, 50, 150)
+    # find contours of the iris region
+    contours, hierarchy = cv2.findContours(
+        edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    max_contour = max(contours, key=cv2.contourArea)
+    # select the largest contour as the iris region
+
+    (ix, iy), rad = cv2.minEnclosingCircle(
+        max_contour)
+    iris_center_x = int(ix)
+    iris_center_y = int(iy)
+    normalized_radius = int(rad)
+    return iris_center_x, iris_center_y, normalized_radius
+
+
 def searchOuterBound(img, inner_y, inner_x, inner_r):
     # Maximum displacement
     maxdispl = np.round(inner_r*0.15).astype(int)
 
     # 0.1 - 0.8
-    minrad = np.round(inner_r/0.8).astype(int)
-    maxrad = np.round(inner_r/0.3).astype(int)
+    minrad = np.round(inner_r/0.7).astype(int)
+    maxrad = np.round(inner_r/0.2).astype(int)
 
     # Integration region, avoiding eyelids
     intreg = np.array([[2/6, 4/6], [8/6, 10/6]]) * np.pi
@@ -106,6 +136,14 @@ def searchOuterBound(img, inner_y, inner_x, inner_r):
     outer_r = minrad + r - 1
 
     return outer_y, outer_x, outer_r
+
+
+def searchOuterBound2(eye_image, inner_x, inner_y, inner_r):
+    scaling_factor = 2.3
+
+    outer_r = inner_r * scaling_factor
+
+    return inner_x, inner_y, outer_r
 
 
 def ContourIntegralCircular(imagen, y_0, x_0, r, angs):

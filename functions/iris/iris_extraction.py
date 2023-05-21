@@ -1,7 +1,9 @@
+import numpy as np
 import cv2
 from functions.iris.iris_segment import segment
 from functions.iris.iris_normalize import normalize
 from functions.iris.iris_encode import encode
+from functions.iris.utilities import canny, h_threshold, non_max_suppression
 
 
 def iris_extract(im_filename):
@@ -11,12 +13,12 @@ def iris_extract(im_filename):
     eyelashes_thres = 80
     # Feature encoding parameters
     minWaveLength = 18
-    mult = 1
-    sigmaOnf = 0.5
 
     # Perform segmentation
     im = cv2.imread(im_filename, 0)
-    iris_circle, pupil_circle, imwithnoise = segment(im, eyelashes_thres)
+
+    iris_circle, pupil_circle, imwithnoise = segment(
+        im, eyelashes_thres)
 
     # Perform normalization
     polar_array, noise_array = normalize(imwithnoise, iris_circle[1], iris_circle[0], iris_circle[2],
@@ -25,6 +27,6 @@ def iris_extract(im_filename):
 
     # Perform feature encoding
     template, mask = encode(polar_array, noise_array,
-                            minWaveLength, mult, sigmaOnf)
+                            minWaveLength)
 
     return template, mask, im_filename

@@ -1,16 +1,18 @@
 import os
+
 from glob import glob
 from cv2 import imencode
 from functions.multimodal.fusion_score import fusion_matching
 from functions.face.face_add import face_add
 from functions.iris.iris_add import iris_add
 from PIL import Image
+from functions.multimodal.utilities import json_write
 import numpy as np
 
 DATA_DIR = "data/db/"
 
 
-def on_add(face_dir, iris_dir):
+def on_add(face_dir, iris_dir, username):
     files = glob("data/db/*")
     idx = str(len(files) + 1)
     save_dir = DATA_DIR + idx
@@ -18,11 +20,15 @@ def on_add(face_dir, iris_dir):
     if not os.path.exists(save_dir):
         print("makedirs", save_dir)
         os.makedirs(save_dir)
+    result = face_add(face_dir, idx, DATA_DIR)
+    if not result:
+        os.rmdir(save_dir)
+        return 0
 
-    face_add(face_dir, idx, DATA_DIR)
-    iris_add(iris_dir, idx, DATA_DIR)
-
-    return idx
+    else:
+        iris_add(iris_dir, idx, DATA_DIR)
+        json_write(save_dir, {"username": username})
+        return idx
 
 
 def on_rec(face_dir, iris_dir):

@@ -31,11 +31,11 @@ def test_iris_matching():
     files2 = sorted(
         glob(os.path.join(DATA_DIR, "test_iris/iris_2_2/*/*.mat")), key=len)
 
-    true = 0
-    false = 0
+    true_acc = 0
+    rejected = 0
+    false_acc = 0
     for index, file1 in enumerate(files1):
         data_template = sio.loadmat(file1)
-
         template_search = data_template['template']
         mask_search = data_template['mask']
         dist_list = []
@@ -46,18 +46,22 @@ def test_iris_matching():
             mask = data_template['mask']
             dist_list.append(iris_distance(
                 template_search, mask_search, template, mask))
-
-        if np.argmin(dist_list) == index:
-            true += 1
-            print("iris no:", index + 1, "prediction:",
+        if min(dist_list) > 0.40:
+            rejected += 1
+            print("iris no:", index + 1, "REJECTED")
+        elif np.argmin(dist_list) == index:
+            true_acc += 1
+            print("iris no:", index + 1, "correctly accepted: ",
                   np.argmin(dist_list) + 1, "CORRECT")
         else:
-            false += 1
-            print("iris no:", index + 1, "prediction:",
+            false_acc += 1
+            print("iris no:", index + 1, "falsely accepted: ",
                   np.argmin(dist_list) + 1, "FALSE")
-    print("No of correct predictions:", true)
-    print("No of false predictions:", false)
-    print("Correct % :", true/(true+false) * 100)
+    print("No of correct acceptance:", true_acc)
+    print("No of rejectance:", rejected)
+    print("No of false acceptance:", false_acc)
+    print("FAR % :", false_acc/(true_acc+rejected) * 100)
+    print("FRR % :", rejected/(true_acc+rejected) * 100)
 
 
 # add_all_iris()

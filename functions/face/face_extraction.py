@@ -18,6 +18,7 @@ def get_face_locations(img):
 
 
 def get_face_landmarks(face_image):
+
     face_locations = get_face_locations(face_image)
 
     return [face_predictor(face_image, face_location) for face_location in face_locations]
