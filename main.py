@@ -1,4 +1,8 @@
-import ui
+from controller import Controller
+from models.mm import Multimodal
+from view import view
 
 if __name__ == '__main__':
-    ui()
+    multimodal = Multimodal()
+    controller = Controller(multimodal)
+    view(controller)
