@@ -12,25 +12,9 @@ from models.iris_rec import IrisRec
 class Controller:
     def __init__(self, multimodal):
         self.multimodal = multimodal
-        self.data_dir = multimodal.data_dir
 
-    def on_add(self, face_dir, iris_dir, name, surname):
-        files = glob("data/db/*")
-        idx = str(len(files) + 1)
-        save_dir = self.data_dir + idx + "-" + name + "-" + surname
-
-        if not os.path.exists(save_dir):
-            print("makedirs", save_dir)
-            os.makedirs(save_dir)
-            result = FaceRec.face_add(
-                face_dir, idx, save_dir)
-        if not result:
-            os.rmdir(save_dir)
-            return 0
-        else:
-            IrisRec.iris_add(iris_dir, idx, save_dir)
-
-            return idx
+    def on_enroll(self, face_dir, iris_dir, name, surname):
+        return self.multimodal.enroll_subject(face_dir, iris_dir, name, surname)
 
     def on_delete(self, idx):
         dir = self.data_dir + idx
@@ -41,53 +25,26 @@ class Controller:
         else:
             return 0
 
-    def on_rec(self, face_dir, iris_dir):
+    def on_rec(self, face_dir, iris_dir, mode, modality):
+        self.multimodal.set_mode(mode)
+        self.multimodal.set_modality(modality)
 
-        index_max = self.multimodal.fusion_matching(
-            face_dir, iris_dir, self.data_dir)
-        matched_dir = self.get_info(index_max)
-        matched_dir = matched_dir[8:]
-        subject = self.format_name(matched_dir)
-        return index_max, subject, matched_dir
+        face_img_searched = self.multimodal.get_image(face_dir, 0)
+        iris_img_searched = self.multimodal.get_image(iris_dir, 0)
 
-    def get_image(self, dir, full):
-        im = Image.open(dir)
+        index_max = self.multimodal.matching(
+            face_dir, iris_dir)
+        print("index", index_max)
+        subject = self.multimodal.get_at_index(index_max)[3:]
+        get_face_img_matched, iris_img_matched = self.multimodal.get_db_image(
+            subject, 0)
+        matched_dir = self.multimodal.get_info(index_max + 1)
 
-        if full:
-            im.thumbnail((320, 240), Image.Resampling.LANCZOS)
-        else:
-            im.thumbnail((240, 160), Image.Resampling.LANCZOS)
+        print("dir", matched_dir)
+        subject = self.multimodal.format_name(matched_dir)
+        return index_max, subject, face_img_searched, iris_img_searched, get_face_img_matched, iris_img_matched
 
-        im_rgb = im.convert('RGB')
-        imgbytes = io.BytesIO()
-        im_rgb.save(imgbytes, format='PPM')
-        imgbytes = imgbytes.getvalue()
-
-        return imgbytes
-
-    def get_db_image(self, subject_dir, full):
-
-        iris_dir = self.data_dir + subject_dir + "/iris.png"
-        face_dir = self.data_dir + subject_dir + "/face.png"
-
-        iris_image = self.get_image(iris_dir, full)
-
-        face_image = self.get_image(face_dir, full)
-
-        return face_image, iris_image
-
-    def set_order(self, order):
-        if order != self.multimodal.order:
-            self.multimodal.order = order
-
-    def set_mode(self, mode):
-        if mode != self.multimodal.mode:
-            self.multimodal.mode = mode
-
-    def format_name(self, subject):
-        parts = subject.split("-")
-        return f"#{parts[0]}  {parts[1].title()} {parts[2].title()}"
-
-    def get_info(self, id):
-        file = glob(f"data/db/{id}-*")
-        return file[0]
+    def on_display(self, subject):
+        face_img, iris_img = self.multimodal.get_db_image(subject, 1)
+        subjectInfo = self.multimodal.format_name(subject)
+        return face_img, iris_img, subjectInfo

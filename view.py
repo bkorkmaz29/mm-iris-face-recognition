@@ -1,7 +1,7 @@
 import PySimpleGUI as sg
 import numpy as np
 import os
-dir_path = 'data/db'
+dir_path = 'db'
 folder_names = [name for name in os.listdir(
     dir_path) if os.path.isdir(os.path.join(dir_path, name))]
 
@@ -33,7 +33,7 @@ def view(controller):
                                         size=(25, 1), enable_events=True, key='-IRISREC-'), sg.FileBrowse()
                                 ],
                                 [
-                                    sg.Button('Search', size=(10, 1),
+                                    sg.Button('Recognize', size=(10, 1),
                                               pad=((10, 0), (10, 0)))
                                 ]
                             ], element_justification='center')
@@ -45,11 +45,11 @@ def view(controller):
                     sg.Frame('Settings', [
                         [
                             sg.Column([
-                                [sg.Radio('Parallel', 'group1', key='-ORDER1-', enable_events=True,
+                                [sg.Radio('Multimodal', 'group1', key='-MODALITY1-', enable_events=True,
                                           default=True, font=("Roboto", 10))],
-                                [sg.Radio('Face-->Iris', 'group1', key='-ORDER2-', enable_events=True,
+                                [sg.Radio('Face Recognition', 'group1', key='-MODALITY2-', enable_events=True,
                                           font=("Roboto", 10))],
-                                [sg.Radio('Iris-->Face', 'group1', key='-ORDER3-', enable_events=True,
+                                [sg.Radio('Iris Recognition', 'group1', key='-MODALITY3-', enable_events=True,
                                           font=("Roboto", 10))]
                             ], element_justification='left', expand_y=True),
                             sg.VSeparator(),
@@ -58,7 +58,7 @@ def view(controller):
                                           font=("Roboto", 10))],
                                 [sg.Radio('Balanced', 'group2', key="-MODE2-", enable_events=True,
                                           default=True, font=("Roboto", 10))],
-                                [sg.Radio('Accuracy', 'group2', key="-MODE3-", enable_events=True,
+                                [sg.Radio('Recall', 'group2', key="-MODE3-", enable_events=True,
                                           font=("Roboto", 10))]
                             ], element_justification='left', expand_y=True)
                         ]
@@ -204,54 +204,55 @@ def view(controller):
         event, values = window.read(timeout=20)
         if event == 'Exit' or event == sg.WIN_CLOSED:
             return
-        elif event == 'Search':
-            if values['-ORDER1-']:
-                controller.set_order(1)
-            elif values['-ORDER2-']:
-                controller.set_order(2)
-            elif values['-ORDER3-']:
-                controller.set_order(3)
-
+        elif event == 'Recognize':
             if values['-MODE1-']:
-                controller.set_mode(1)
+                mode = 1
             elif values['-MODE2-']:
-                controller.set_mode(2)
+                mode = 2
             elif values['-MODE3-']:
-                controller.set_mode(3)
+                mode = 3
 
-            if not values['-FACEREC-'] or not values['-IRISREC-']:
-                sg.popup('Please fill every field.', title='Error')
+            if values['-MODALITY1-']:
+                if not values['-FACEREC-'] or not values['-IRISREC-']:
+                    sg.popup('Please fill every field.', title='Error')
+                    continue
+                modality = 1
+            elif values['-MODALITY2-']:
+                if not values['-FACEREC-']:
+                    sg.popup('Please fill every field.', title='Error')
+                    continue
+                modality = 2
+            elif values['-MODALITY3-']:
+                if not values['-IRISREC-']:
+                    sg.popup('Please fill every field.', title='Error')
+                    continue
+                modality = 3
+
+            match_id, match_name, face_img_searched, iris_img_searched, face_img_matched, iris_img_matched = controller.on_rec(
+                values["-FACEREC-"], values["-IRISREC-"], mode, modality)
+            face_elem_search.update(data=face_img_searched)
+            iris_elem_search.update(data=iris_img_searched)
+
+            if match_id == -1:
+                text_elem_matched.update("No matching person")
+                face_elem_matched.update(data=None)
+                iris_elem_matched.update(data=None)
             else:
-                face_img_search = controller.get_image(values["-FACEREC-"], 0)
-                iris_img_search = controller.get_image(values["-IRISREC-"], 0)
-                face_elem_search.update(data=face_img_search)
-                iris_elem_search.update(data=iris_img_search)
-                match_id, match_name, match_dir = controller.on_rec(
-                    values["-FACEREC-"], values["-IRISREC-"])
 
-                if match_id == 0:
-                    text_elem_matched.update("No matching person")
-                    face_elem_matched.update(data=None)
-                    iris_elem_matched.update(data=None)
-                else:
-                    res = str(match_id)
-                    face_img_matched, iris_img_matched = controller.get_db_image(
-                        match_dir, 0)
-                    face_elem_matched.update(data=face_img_matched)
-                    iris_elem_matched.update(data=iris_img_matched)
-                    text_elem_search.update("Searched")
-                    text_elem_matched.update(match_name)
+                face_elem_matched.update(data=face_img_matched)
+                iris_elem_matched.update(data=iris_img_matched)
+                text_elem_search.update("Searched")
+                text_elem_matched.update(match_name)
         elif event == 'Enroll':
-            if not values['-FACEREC-'] or not values['-IRISREC-'] or not values['-NAMEADD-'] or not values['-SURNAMEADD-']:
+            if not values['-FACEADD-'] or not values['-IRISADD-'] or not values['-NAMEADD-'] or not values['-SURNAMEADD-']:
                 sg.popup('Please fill every field.', title='Error')
             else:
                 full_name = values['-NAMEADD-'] + " " + values['-SURNAMEADD-']
-                face_img = controller.get_image(values["-FACEADD-"], 1)
-                iris_img = controller.get_image(values["-IRISADD-"], 1)
+
+                id, face_img, face_img = controller.on_enroll(values["-FACEADD-"],
+                                                              values["-IRISADD-"], values['-NAMEADD-'], values['-SURNAMEADD-'])
                 face_elem_add.update(data=face_img)
                 iris_elem_add.update(data=iris_img)
-                id = controller.on_add(values["-FACEADD-"],
-                                       values["-IRISADD-"], values['-NAMEADD-'], values['-SURNAMEADD-'])
                 if id == 0:
                     text_elem_add.update("No face detected")
                 else:
@@ -260,11 +261,11 @@ def view(controller):
                 refresh_folder_list(window)
 
         elif event == 'Display':
-            user_info = controller.format_name(values["-DB-"][0])
-            face_img, iris_img = controller.get_db_image(values["-DB-"][0], 1)
+            face_img, iris_img, subject = controller.on_display(
+                values["-DB-"][0])
             face_elem_db.update(data=face_img)
             iris_elem_db.update(data=iris_img)
-            text_elem_db.update(user_info)
+            text_elem_db.update(subject)
         elif event == 'Delete':
             user_info = controller.format_name(values["-DB-"][0])
             result = controller.on_delete(values["-DB-"][0])
