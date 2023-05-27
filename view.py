@@ -219,12 +219,12 @@ def view(controller):
                 modality = 1
             elif values['-MODALITY2-']:
                 if not values['-FACEREC-']:
-                    sg.popup('Please fill every field.', title='Error')
+                    sg.popup('Please fill face image field.', title='Error')
                     continue
                 modality = 2
             elif values['-MODALITY3-']:
                 if not values['-IRISREC-']:
-                    sg.popup('Please fill every field.', title='Error')
+                    sg.popup('Please fill iris image field.', title='Error')
                     continue
                 modality = 3
 
@@ -237,8 +237,8 @@ def view(controller):
                 text_elem_matched.update("No matching person")
                 face_elem_matched.update(data=None)
                 iris_elem_matched.update(data=None)
-            else:
 
+            else:
                 face_elem_matched.update(data=face_img_matched)
                 iris_elem_matched.update(data=iris_img_matched)
                 text_elem_search.update("Searched")
@@ -249,7 +249,7 @@ def view(controller):
             else:
                 full_name = values['-NAMEADD-'] + " " + values['-SURNAMEADD-']
 
-                id, face_img, face_img = controller.on_enroll(values["-FACEADD-"],
+                id, face_img, iris_img = controller.on_enroll(values["-FACEADD-"],
                                                               values["-IRISADD-"], values['-NAMEADD-'], values['-SURNAMEADD-'])
                 face_elem_add.update(data=face_img)
                 iris_elem_add.update(data=iris_img)
@@ -267,9 +267,8 @@ def view(controller):
             iris_elem_db.update(data=iris_img)
             text_elem_db.update(subject)
         elif event == 'Delete':
-            user_info = controller.format_name(values["-DB-"][0])
-            result = controller.on_delete(values["-DB-"][0])
+            result, userInfo = controller.on_delete(values["-DB-"][0])
             face_elem_db.update(data=None)
             iris_elem_db.update(data=None)
-            text_elem_db.update(user_info + " deleted")
+            text_elem_db.update(userInfo + " deleted")
             refresh_folder_list(window)
