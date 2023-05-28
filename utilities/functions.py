@@ -1,8 +1,7 @@
-import cv2
 from utilities.iris.utilities import iris_preprocess
+import cv2
 from scipy import signal
 import numpy as np
-
 from skimage.transform import radon
 
 

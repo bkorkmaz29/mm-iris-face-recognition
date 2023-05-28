@@ -1,6 +1,6 @@
 data/
-models/
 __pycache__/
 yale/
 tests/
 db/
+.coverage/

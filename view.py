@@ -167,7 +167,7 @@ def view(controller):
              sg.Image(filename='', key='-IRISIMAGEDB-', size=(320, 240), background_color='white')],
         ], border_width=3, size=(800, 600), background_color='white', key='-IMAGEFRAME-', element_justification='center',  vertical_alignment='center', relief="groove")]
     ]
-    tabgrp = [
+    app_layout = [
 
         [
             [sg.TabGroup([
@@ -185,7 +185,7 @@ def view(controller):
             ], tab_location='centertop', border_width=5, tab_background_color='Gray', selected_background_color='Ivory', size=(1000, 500))]
         ],]
 
-    window = sg.Window('app', tabgrp, element_justification='center',
+    window = sg.Window('app', app_layout, element_justification='center',
                        location=(0, 0), size=(1200, 600))
     face_elem_add = window['-FACEIMAGEADD-']
     iris_elem_add = window['-IRISIMAGEADD-']
@@ -228,7 +228,7 @@ def view(controller):
                     continue
                 modality = 3
 
-            match_id, match_name, face_img_searched, iris_img_searched, face_img_matched, iris_img_matched = controller.on_rec(
+            match_id, match_name, face_img_searched, iris_img_searched, face_img_matched, iris_img_matched = controller.recognize(
                 values["-FACEREC-"], values["-IRISREC-"], mode, modality)
             face_elem_search.update(data=face_img_searched)
             iris_elem_search.update(data=iris_img_searched)
@@ -249,8 +249,8 @@ def view(controller):
             else:
                 full_name = values['-NAMEADD-'] + " " + values['-SURNAMEADD-']
 
-                id, face_img, iris_img = controller.on_enroll(values["-FACEADD-"],
-                                                              values["-IRISADD-"], values['-NAMEADD-'], values['-SURNAMEADD-'])
+                id, face_img, iris_img = controller.enroll(values["-FACEADD-"],
+                                                           values["-IRISADD-"], values['-NAMEADD-'], values['-SURNAMEADD-'])
                 face_elem_add.update(data=face_img)
                 iris_elem_add.update(data=iris_img)
                 if id == 0:
@@ -261,13 +261,13 @@ def view(controller):
                 refresh_folder_list(window)
 
         elif event == 'Display':
-            face_img, iris_img, subject = controller.on_display(
+            face_img, iris_img, subject = controller.display(
                 values["-DB-"][0])
             face_elem_db.update(data=face_img)
             iris_elem_db.update(data=iris_img)
             text_elem_db.update(subject)
         elif event == 'Delete':
-            result, userInfo = controller.on_delete(values["-DB-"][0])
+            result, userInfo = controller.delete(values["-DB-"][0])
             face_elem_db.update(data=None)
             iris_elem_db.update(data=None)
             text_elem_db.update(userInfo + " deleted")
