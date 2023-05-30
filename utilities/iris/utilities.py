@@ -1,175 +1,195 @@
-import cv2
 import numpy as np
 from scipy.ndimage import convolve
 
 
-def fspecial_gaussian(shape=(3, 3), sig=1):
-    m, n = [(ss - 1) / 2 for ss in shape]
+def fspecial_gaussian(shape=(3, 3), sigma=1):
+    # Compute the center coordinates of the filter shape
+    m, n = [(size - 1) / 2 for size in shape]
+
+    # Generate the grid of x and y coordinates
     y, x = np.ogrid[-m:m + 1, -n:n + 1]
-    f = np.exp(-(x * x + y * y) / (2 * sig * sig))
-    f[f < np.finfo(f.dtype).eps * f.max()] = 0
-    sum_f = f.sum()
-    if sum_f != 0:
-        f /= sum_f
-    return f
+
+    # Compute the Gaussian values
+    exponent = -(x * x + y * y) / (2 * sigma * sigma)
+    gaussian = np.exp(exponent)
+
+    # Set small values to zero for numerical stability
+    gaussian[gaussian < np.finfo(gaussian.dtype).eps * gaussian.max()] = 0
+
+    # Normalize the filter to ensure the sum of values is 1
+    sum_gaussian = gaussian.sum()
+    if sum_gaussian != 0:
+        gaussian /= sum_gaussian
+
+    return gaussian
 
 
-def canny(im, sigma, vert, horz):
+def canny(image, sigma, vertical, horizontal):
+    # Apply Gaussian filter to smooth the image
     filter_size = [6 * sigma + 1, 6 * sigma + 1]
     gaussian = fspecial_gaussian(filter_size, sigma)
-    im = convolve(im, gaussian, mode='constant')
-    rows, cols = im.shape
+    image = convolve(image, gaussian, mode='constant')
+    rows, cols = image.shape
 
-    h = np.concatenate([im[:, 1:cols], np.zeros([rows, 1])], axis=1) - \
-        np.concatenate([np.zeros([rows, 1]), im[:, 0: cols - 1]], axis=1)
+    # Compute horizontal and vertical gradients using finite differences
+    h = np.concatenate([image[:, 1:cols], np.zeros([rows, 1])], axis=1) - \
+        np.concatenate([np.zeros([rows, 1]), image[:, 0:cols - 1]], axis=1)
 
-    v = np.concatenate([im[1: rows, :], np.zeros([1, cols])], axis=0) - \
-        np.concatenate([np.zeros([1, cols]), im[0: rows - 1, :]], axis=0)
+    v = np.concatenate([image[1:rows, :], np.zeros([1, cols])], axis=0) - \
+        np.concatenate([np.zeros([1, cols]), image[0:rows - 1, :]], axis=0)
 
-    d11 = np.concatenate([im[1:rows, 1:cols], np.zeros([rows - 1, 1])], axis=1)
+    # Compute diagonal gradients
+    d11 = np.concatenate(
+        [image[1:rows, 1:cols], np.zeros([rows - 1, 1])], axis=1)
     d11 = np.concatenate([d11, np.zeros([1, cols])], axis=0)
     d12 = np.concatenate(
-        [np.zeros([rows-1, 1]), im[0:rows - 1, 0:cols - 1]], axis=1)
+        [np.zeros([rows-1, 1]), image[0:rows - 1, 0:cols - 1]], axis=1)
     d12 = np.concatenate([np.zeros([1, cols]), d12], axis=0)
     d1 = d11 - d12
 
     d21 = np.concatenate(
-        [im[0:rows - 1, 1:cols], np.zeros([rows - 1, 1])], axis=1)
+        [image[0:rows - 1, 1:cols], np.zeros([rows - 1, 1])], axis=1)
     d21 = np.concatenate([np.zeros([1, cols]), d21], axis=0)
     d22 = np.concatenate(
-        [np.zeros([rows - 1, 1]), im[1:rows, 0:cols - 1]], axis=1)
+        [np.zeros([rows - 1, 1]), image[1:rows, 0:cols - 1]], axis=1)
     d22 = np.concatenate([d22, np.zeros([1, cols])], axis=0)
     d2 = d21 - d22
 
-    X = (h + (d1 + d2) / 2) * vert
-    Y = (v + (d1 - d2) / 2) * horz
+    # Compute X and Y gradients
+    X = (h + (d1 + d2) / 2) * vertical
+    Y = (v + (d1 - d2) / 2) * horizontal
 
-    gradient = np.sqrt(X * X + Y * Y)  # Gradient amplitude
+    # Compute gradient magnitude
+    gradient = np.sqrt(X * X + Y * Y)
 
-    orient = np.arctan2(-Y, X)  # Angles -pi to +pi
-    neg = orient < 0  # Map angles to 0-pi
-    orient = orient * ~neg + (orient + np.pi) * neg
-    orient = orient * 180 / np.pi  # Convert to degrees
+    # Compute gradient orientation
+    orientation = np.arctan2(-Y, X)
+    negative = orientation < 0
+    orientation = orientation * ~negative + (orientation + np.pi) * negative
+    orientation = orientation * 180 / np.pi
 
-    return gradient, orient
+    return gradient, orientation
 
 
-def non_max_suppression(in_img, orient, radius):
-    rows, cols = in_img.shape
-    im_out = np.zeros([rows, cols])
-    i_radius = np.ceil(radius).astype(int)
+def non_max_suppression(input_image, orientation, radius):
+    rows, cols = input_image.shape
+    output_image = np.zeros([rows, cols])
+    integer_radius = np.ceil(radius).astype(int)
 
-    # Pre-calculate x and y offsets relative to centre pixel for each orientation angle
-    # Angles in 1 degree increments (in radians)
-    angle = np.arange(181) * np.pi / 180
-    # x and y offset of points at specified radius and angle
-    xoff = radius * np.cos(angle)
-    yoff = radius * np.sin(angle)  # from each reference position
+    # Pre-calculate x and y offsets relative to center pixel for each orientation angle
+    angles = np.arange(181) * np.pi / 180
+    x_offset = radius * np.cos(angles)
+    y_offset = radius * np.sin(angles)
 
-    # Fractional offset of xoff relative to integer location
-    hfrac = xoff - np.floor(xoff)
-    # Fractional offset of yoff relative to integer location
-    vfrac = yoff - np.floor(yoff)
+    # Fractional offset of x_offset relative to integer location
+    x_fractional = x_offset - np.floor(x_offset)
+    # Fractional offset of y_offset relative to integer location
+    y_fractional = y_offset - np.floor(y_offset)
 
-    orient = np.fix(orient)
+    orientation = np.fix(orientation)
 
-    # Now run through the image interpolating grey values on each side
-    # of the centre pixel to be used for the non-maximal suppression
-    col, row = np.meshgrid(np.arange(i_radius, cols - i_radius),
-                           np.arange(i_radius, rows - i_radius))
+    # Run through the image interpolating gray values on each side of the center pixel
+    # to be used for non-maximal suppression
+    col, row = np.meshgrid(np.arange(integer_radius, cols - integer_radius),
+                           np.arange(integer_radius, rows - integer_radius))
 
     # Index into precomputed arrays
-    oriient_arrays = orient[row, col].astype(int)
+    orientation_arrays = orientation[row, col].astype(int)
 
     # x, y location on one side of the point in question
-    x = col + xoff[oriient_arrays]
-    y = row - yoff[oriient_arrays]
+    x = col + x_offset[orientation_arrays]
+    y = row - y_offset[orientation_arrays]
 
-    # Get integer pixel locations that surround location x,y
-    fx = np.floor(x).astype(int)
-    cx = np.ceil(x).astype(int)
-    fy = np.floor(y).astype(int)
-    cy = np.ceil(y).astype(int)
+    # Get integer pixel locations that surround the location x, y
+    floor_x = np.floor(x).astype(int)
+    ceil_x = np.ceil(x).astype(int)
+    floor_y = np.floor(y).astype(int)
+    ceil_y = np.ceil(y).astype(int)
 
-    # Value at integer pixel locations
-    tl = in_img[fy, fx]  # top left
-    tr = in_img[fy, cx]  # top right
-    bl = in_img[cy, fx]  # bottom left
-    br = in_img[cy, cx]  # bottom right
+    # Values at integer pixel locations
+    top_left = input_image[floor_y, floor_x]
+    top_right = input_image[floor_y, ceil_x]
+    bottom_left = input_image[ceil_y, floor_x]
+    bottom_right = input_image[ceil_y, ceil_x]
 
-    # Bi-linear interpolation to estimate value at x,y
-    upperavg = tl + hfrac[oriient_arrays] * (tr - tl)
-    loweravg = bl + hfrac[oriient_arrays] * (br - bl)
-    v1 = upperavg + vfrac[oriient_arrays] * (loweravg - upperavg)
+    # Bi-linear interpolation to estimate value at x, y
+    upper_avg = top_left + \
+        x_fractional[orientation_arrays] * (top_right - top_left)
+    lower_avg = bottom_left + \
+        x_fractional[orientation_arrays] * (bottom_right - bottom_left)
+    interpolated_values_1 = upper_avg + \
+        y_fractional[orientation_arrays] * (lower_avg - upper_avg)
 
     # Check the value on the other side
-    map_candidate_region = in_img[row, col] > v1
+    candidate_region_map = input_image[row, col] > interpolated_values_1
 
-    x = col - xoff[oriient_arrays]
-    y = row + yoff[oriient_arrays]
+    x = col - x_offset[orientation_arrays]
+    y = row + y_offset[orientation_arrays]
 
-    fx = np.floor(x).astype(int)
-    cx = np.ceil(x).astype(int)
-    fy = np.floor(y).astype(int)
-    cy = np.ceil(y).astype(int)
+    floor_x = np.floor(x).astype(int)
+    ceil_x = np.ceil(x).astype(int)
+    floor_y = np.floor(y).astype(int)
+    ceil_y = np.ceil(y).astype(int)
 
-    tl = in_img[fy, fx]
-    tr = in_img[fy, cx]
-    bl = in_img[cy, fx]
-    br = in_img[cy, cx]
+    top_left = input_image[floor_y, floor_x]
+    top_right = input_image[floor_y, ceil_x]
+    bottom_left = input_image[ceil_y, floor_x]
+    bottom_right = input_image[ceil_y, ceil_x]
 
-    upperavg = tl + hfrac[oriient_arrays] * (tr - tl)
-    loweravg = bl + hfrac[oriient_arrays] * (br - bl)
-    v2 = upperavg + vfrac[oriient_arrays] * (loweravg - upperavg)
+    upper_avg = top_left + \
+        x_fractional[orientation_arrays] * (top_right - top_left)
+    lower_avg = bottom_left + \
+        x_fractional[orientation_arrays] * (bottom_right - bottom_left)
+    interpolated_values_2 = upper_avg + \
+        y_fractional[orientation_arrays] * (lower_avg - upper_avg)
 
     # Local maximum
-    map_active = in_img[row, col] > v2
-    map_active = map_active * map_candidate_region
-    im_out[row, col] = in_img[row, col] * map_active
+    active_map = input_image[row, col] > interpolated_values_2
+    active_map = active_map * candidate_region_map
+    output_image[row, col] = input_image[row, col] * active_map
 
-    return im_out
+    return output_image
 
 
-def h_threshold(im, T1, T2):
-    # Pre-compute some values for speed and convenience
-    rows, cols = im.shape
-    rc = rows * cols
-    rcmr = rc - rows
-    rp1 = rows + 1
+def h_threshold(image, threshold1, threshold2):
+    rows, cols = image.shape
+    total_pixels = rows * cols
+    rc_minus_r = total_pixels - rows
+    rows_plus_1 = rows + 1
+    # Flattening the image into a 1D array
+    bw_image = image.ravel()
+    edge_pixels = np.where(bw_image > threshold1)
+    edge_pixels = edge_pixels[0]
+    num_edge_pixels = edge_pixels.size
+    # Creating a stack array to store indices
+    stack = np.zeros(total_pixels)
+    stack[0:num_edge_pixels] = edge_pixels
+    stack_pointer = num_edge_pixels
 
-    bw = im.ravel()  # Make image into a column vector
-    pix = np.where(bw > T1)  # Find indices of all pixels with value > T1
-    pix = pix[0]
-    npix = pix.size         # Find the number of pixels with value > T1
+    for k in range(num_edge_pixels):
+        bw_image[edge_pixels[k]] = -1
 
-    # Create a stack array (that should never overflow)
-    stack = np.zeros(rows * cols)
-    stack[0:npix] = pix         # Put all the edge points on the stack
-    stp = npix  # set stack pointer
-    for k in range(npix):
-        bw[pix[k]] = -1         # Mark points as edges
+    offsets = np.array([-1, 1, -rows - 1, -rows, -rows +
+                       1, rows - 1, rows, rows + 1])
 
-    O = np.array([-1, 1, -rows - 1, -rows, -rows +
-                 1, rows - 1, rows, rows + 1])
-
-    while stp != 0:  # While the stack is not empty
-        v = int(stack[stp-1])  # Pop next index off the stack
-        stp -= 1
-
-        if rp1 < v < rcmr:  # Prevent us from generating illegal indices
-            # Now look at surrounding pixels to see if they should be pushed onto
-            # the stack to be processed as well
-            index = O + v  # Calculate indices of points around this pixel.
+    while stack_pointer != 0:
+        v = int(stack[stack_pointer - 1])
+        stack_pointer -= 1
+        # Check if the index is within valid range
+        if rows_plus_1 < v < rc_minus_r:
+            indices = offsets + v
             for l in range(8):
-                ind = index[l]
-                if bw[ind] > T2:  # if value > T2,
-                    stp += 1  # push index onto the stack.
-                    stack[stp-1] = ind
-                    bw[ind] = -1  # mark this as an edge point
+                index = indices[l]
+                if bw_image[index] > threshold2:
+                    stack_pointer += 1
+                    stack[stack_pointer - 1] = index
+                    bw_image[index] = -1
+    # Convert edge points to boolean values (True: edge, False: non-edge)
+    bw_image = (bw_image == -1)
+    # Reshape the image array back to 2D
+    bw_image = np.reshape(bw_image, [rows, cols])
 
-    bw = (bw == -1)  # Finally zero out anything that was not an edge
-    bw = np.reshape(bw, [rows, cols])  # Reshape the image
-    return bw
+    return bw_image
 
 
 def iris_preprocess(img):

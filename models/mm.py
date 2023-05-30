@@ -40,7 +40,10 @@ class MMR:
 
     def get_at_index(self, index):
         files = glob(f"{self.data_dir}/*")
-        return files[index]
+        if len(files) < index:
+            return -1
+        else:
+            return files[index]
 
     def find_id(self, files):
         id_numbers = []
@@ -53,9 +56,8 @@ class MMR:
         return smallest_missing_number
 
     def format_name(self, subject):
-        print("sdfsdf", subject)
         parts = subject.split("-")
-        return f"#{parts[0]}  {parts[1].title()} {parts[2].title()}"
+        return f"#{parts[0]} {parts[1].title()} {parts[2].title()}"
 
     def get_info(self, id):
         file = glob(f"{self.data_dir}/{id}-*")
@@ -69,11 +71,24 @@ class MMR:
             im = Image.new("RGB", (600, 533), "white")
         else:
             im = Image.open(dir)
+            im.resize((320, 240))
+            original_width, original_height = im.size
+
+            crop_size = min(original_width, original_height)
+            # Calculate the left, upper, right, and lower coordinates for the crop
+            left = (original_width - crop_size) // 2
+            upper = (original_height - crop_size) // 2
+            right = left + crop_size
+            lower = upper + crop_size
+
+            # Crop the image
+            im = im.crop((left, upper, right, lower))
 
         if full:
-            im.thumbnail((320, 240), Image.Resampling.LANCZOS)
+            im.thumbnail((240, 240), Image.Resampling.LANCZOS)
+
         else:
-            im.thumbnail((240, 160), Image.Resampling.LANCZOS)
+            im.thumbnail((160, 160), Image.Resampling.LANCZOS)
 
         im_rgb = im.convert('RGB')
         imgbytes = io.BytesIO()
@@ -123,10 +138,13 @@ class MMR:
         image = np.array(im2)
         features = FaceRec.get_features(image)
         all_zeros = np.all(features == 0)
+
         if all_zeros:
             im.close()
             return 0
+
         else:
+
             basename = "/f" + idx
             out_file = data_dir + basename + ".npy"
             np.save(out_file, features)
@@ -134,7 +152,7 @@ class MMR:
             im.save(os.path.join(image_dir, 'face.png'),
                     ICC_PROFILE=im.info.get('icc_profile'))
             im.close()
-            return 1
+        return 1
 
     def iris_add(self, dir, idx, data_dir):
         # Extract iris features
@@ -151,7 +169,7 @@ class MMR:
 
     def enroll_subject(self, face_dir, iris_dir, name, surname):
         files = glob(f"{self.data_dir}/*")
-        id = str(len(files) + 1)
+        id = str(self.find_id(files))
         save_dir = self.data_dir + id + "-" + name + "-" + surname
         face_img = self.get_image(face_dir, 1)
         iris_img = self.get_image(iris_dir, 1)
@@ -160,10 +178,12 @@ class MMR:
             os.makedirs(save_dir)
             result = self.face_add(
                 face_dir, id, save_dir)
+
         if not result:
             os.rmdir(save_dir)
             return 0
         else:
+
             self.iris_add(iris_dir, id, save_dir)
 
         return id, face_img, iris_img
@@ -196,21 +216,19 @@ class MMR:
             face_scores = self.get_face_scores(face_encoding, self.data_dir)
             iris_list = self.get_iris_scores(template, mask, self.data_dir)
             iris_scores = np.array(iris_list)
-
             if (face_scores < self.FACE_TOLERANCE).any() and (iris_scores < self.IRIS_TOLERANCE).any():
                 matched_faces = np.where(face_scores < self.FACE_TOLERANCE)[0]
+                print(matched_faces)
                 matched_iris = np.where(iris_scores < self.IRIS_TOLERANCE)[0]
-
+                print(matched_iris)
                 common_indexes = [
                     element for element in matched_faces if element in matched_iris]
-
-                if common_indexes:
+                print(common_indexes)
+                if len(common_indexes) != 0:
                     fusion_scores = self.cal_weighted_product(
                         face_scores, iris_scores)
-                    if (fusion_scores < self.FUSION_TOLERANCE).any():
+                    if (fusion_scores < self.FUSION_TOLERANCE).any() and np.argmin(fusion_scores) in common_indexes:
                         return np.argmin(fusion_scores)
-                    else:
-                        return -1
                 else:
                     return -1
             else:
@@ -234,7 +252,7 @@ class MMR:
                 return -1
 
     def cal_weighted_product(self, face_scores, iris_scores):
-        weight = 0.2432
+        weight = 0.376
         weighted_product = (face_scores ** weight) * \
             (iris_scores ** (1 - weight))
         return weighted_product

@@ -9,123 +9,147 @@ class IrisRec:
 
     @classmethod
     def segment(cls, eye_image, eyelash_threshold):
-        rowp, colp, rp = search_inner_bound(eye_image)
-        row, col, r = search_outer_bound(eye_image, rowp, colp, rp)
+        # Search for the inner boundary of the pupil
+        pupil_center_row, pupil_center_col, pupil_radius = search_inner_bound(
+            eye_image)
+
+        # Search for the outer boundary of the iris
+        iris_center_row, iris_center_col, iris_radius = search_outer_bound(
+            eye_image, pupil_center_row, pupil_center_col, pupil_radius)
 
         # Package pupil and iris boundaries
-        rowp = np.round(rowp).astype(int)
-        colp = np.round(colp).astype(int)
-        rp = np.round(rp).astype(int)
-        row = np.round(row).astype(int)
-        col = np.round(col).astype(int)
-        r = np.round(r).astype(int)
-        pupil_circle = [rowp, colp, rp]
-        iris_circle = [row, col, r]
+        pupil_center_row = np.round(pupil_center_row).astype(int)
+        pupil_center_col = np.round(pupil_center_col).astype(int)
+        pupil_radius = np.round(pupil_radius).astype(int)
+        iris_center_row = np.round(iris_center_row).astype(int)
+        iris_center_col = np.round(iris_center_col).astype(int)
+        iris_radius = np.round(iris_radius).astype(int)
+        pupil_circle = [pupil_center_row, pupil_center_col, pupil_radius]
+        iris_circle = [iris_center_row, iris_center_col, iris_radius]
 
-        # Find top and bottom eyelid
+        # Find top and bottom eyelid regions
         image_shape = eye_image.shape
-        irl = np.round(row - r).astype(int)
-        iru = np.round(row + r).astype(int)
-        icl = np.round(col - r).astype(int)
-        icu = np.round(col + r).astype(int)
-        if irl < 0:
-            irl = 0
-        if icl < 0:
-            icl = 0
-        if iru >= image_shape[0]:
-            iru = image_shape[0] - 1
-        if icu >= image_shape[1]:
-            icu = image_shape[1] - 1
-        iris_image = eye_image[irl: iru + 1, icl: icu + 1]
+        eyelid_region_top = np.round(iris_center_row - iris_radius).astype(int)
+        eyelid_region_bottom = np.round(
+            iris_center_row + iris_radius).astype(int)
+        eyelid_region_left = np.round(
+            iris_center_col - iris_radius).astype(int)
+        eyelid_region_right = np.round(
+            iris_center_col + iris_radius).astype(int)
+        eyelid_region_top = max(0, eyelid_region_top)
+        eyelid_region_left = max(0, eyelid_region_left)
+        eyelid_region_bottom = min(image_shape[0] - 1, eyelid_region_bottom)
+        eyelid_region_right = min(image_shape[1] - 1, eyelid_region_right)
+        iris_region_image = eye_image[eyelid_region_top:eyelid_region_bottom +
+                                      1, eyelid_region_left:eyelid_region_right + 1]
 
-        mask_top = find_top_eyelid(image_shape, iris_image, irl, icl, rowp, rp)
-        mask_bottom = find_bottom_eyelid(
-            image_shape, iris_image, rowp, rp, irl, icl)
+        # Find the top eyelid mask
+        top_eyelid_mask = find_top_eyelid(
+            image_shape, iris_region_image, eyelid_region_top, eyelid_region_left, pupil_center_row, pupil_radius)
+
+        # Find the bottom eyelid mask
+        bottom_eyelid_mask = find_bottom_eyelid(
+            image_shape, iris_region_image, pupil_center_row, pupil_radius, eyelid_region_top, eyelid_region_left)
+
         # Mask the eye image
-        img_noise = eye_image.astype(float)
-        img_noise = eye_image + mask_top + mask_bottom
-        # Eliminate eyelashes by threshold
-        ref = eye_image < eyelash_threshold
-        coords = np.where(ref == 1)
-        img_noise[coords] = np.nan
+        noisy_image = eye_image.astype(float)
+        noisy_image = eye_image + top_eyelid_mask + bottom_eyelid_mask
 
-        return iris_circle, pupil_circle, img_noise
+        # Eliminate eyelashes by thresholding
+        eyelash_mask = eye_image < eyelash_threshold
+        noisy_image[eyelash_mask] = np.nan
+
+        return iris_circle, pupil_circle, noisy_image
 
     @classmethod
     def normalize(cls, image, x_iris, y_iris, r_iris, x_pupil, y_pupil, r_pupil):
         rad_res = 22
         ang_res = 239
+
+        # Create the radial and angular grids
         r = np.arange(rad_res)
         theta = np.linspace(0, 2*np.pi, ang_res+1)
 
         # Calculate displacement of pupil center from the iris center
-        ox = x_pupil - x_iris
-        oy = y_pupil - y_iris
+        dx = x_pupil - x_iris
+        dy = y_pupil - y_iris
 
-        if ox <= 0:
-            sgn = -1
-        elif ox > 0:
-            sgn = 1
-        if ox == 0 and oy > 0:
-            sgn = 1
-        a = np.ones(ang_res+1) * (ox**2 + oy**2)
-        if ox == 0:
+        if dx <= 0:
+            sign_x = -1
+        elif dx > 0:
+            sign_x = 1
+
+        if dx == 0 and dy > 0:
+            sign_x = 1
+
+        a = np.ones(ang_res+1) * (dx**2 + dy**2)
+
+        if dx == 0:
             phi = np.pi/2
         else:
-            phi = np.arctan(oy/ox)
-        b = sgn * np.cos(np.pi - phi - theta)
-        # Calculate radius around the iris as a function of the angle
-        r = np.sqrt(a)*b + np.sqrt(a*b**2 - (a - r_iris**2))
-        r = np.array([r - r_pupil])
+            phi = np.arctan(dy/dx)
 
-        rmat = np.dot(np.ones([rad_res, 1]), r)
-        rmat = rmat * np.dot(np.ones([ang_res+1, 1]),
-                             np.array([np.linspace(0, 1, rad_res)])).transpose()
-        rmat = rmat + r_pupil
+        b = sign_x * np.cos(np.pi - phi - theta)
 
-        # Exclude values at the boundary of the pupil iris border, and the iris scelra border
-        rmat = rmat[1: rad_res-1, :]
-        # Calculate cartesian location of each data point around the circular iris region
-        xcosmat = np.dot(np.ones([rad_res-2, 1]),
-                         np.array([np.cos(theta)]))
-        xsinmat = np.dot(np.ones([rad_res-2, 1]),
-                         np.array([np.sin(theta)]))
+        # Calculate the radius around the iris as a function of the angle
+        radius = np.sqrt(a) * b + np.sqrt(a * b**2 - (a - r_iris**2))
+        radius = np.array([radius - r_pupil])
 
-        xo = rmat * xcosmat
-        yo = rmat * xsinmat
+        r_matrix = np.dot(np.ones([rad_res, 1]), radius)
+        r_matrix = r_matrix * np.dot(np.ones([ang_res+1, 1]),
+                                     np.array([np.linspace(0, 1, rad_res)])).transpose()
+        r_matrix = r_matrix + r_pupil
 
-        xo = x_pupil + xo
-        xo = np.round(xo).astype(int)
-        coords = np.where(xo >= image.shape[1])
-        xo[coords] = image.shape[1] - 1
-        coords = np.where(xo < 0)
-        xo[coords] = 0
+        # Exclude values at the boundary of the pupil-iris border and the iris-sclera border
+        r_matrix = r_matrix[1: rad_res-1, :]
 
-        yo = y_pupil - yo
-        yo = np.round(yo).astype(int)
-        coords = np.where(yo >= image.shape[0])
-        yo[coords] = image.shape[0] - 1
-        coords = np.where(yo < 0)
-        yo[coords] = 0
+        # Calculate the Cartesian location of each data point around the circular iris region
+        x_cos_matrix = np.dot(np.ones([rad_res-2, 1]),
+                              np.array([np.cos(theta)]))
+        y_sin_matrix = np.dot(np.ones([rad_res-2, 1]),
+                              np.array([np.sin(theta)]))
 
-        # Extract intensity values into the normalised polar representation through
-        # interpolation
-        polar_array = image[yo, xo]
+        x_coordinates = r_matrix * x_cos_matrix
+        y_coordinates = r_matrix * y_sin_matrix
+
+        x_coordinates = x_pupil + x_coordinates
+        x_coordinates = np.round(x_coordinates).astype(int)
+        coords = np.where(x_coordinates >= image.shape[1])
+        x_coordinates[coords] = image.shape[1] - 1
+        coords = np.where(x_coordinates < 0)
+        x_coordinates[coords] = 0
+
+        y_coordinates = y_pupil - y_coordinates
+        y_coordinates = np.round(y_coordinates).astype(int)
+        coords = np.where(y_coordinates >= image.shape[0])
+        y_coordinates[coords] = image.shape[0] - 1
+        coords = np.where(y_coordinates < 0)
+        y_coordinates[coords] = 0
+
+        # Extract intensity values into the normalized polar representation
+        polar_array = image[y_coordinates, x_coordinates]
         polar_array = polar_array / 255
-        # Create noise array with location of NaNs in polar_array
+
+        # Create a noise array with the location of NaNs in polar_array
         polar_noise = np.zeros(polar_array.shape)
         coords = np.where(np.isnan(polar_array))
         polar_noise[coords] = 1
-        # Get rid of outling points in order to write out the circular pattern
-        image[yo, xo] = 255
-        # Get pixel coords for circle around iris
-        x, y = get_circle_coords([x_iris, y_iris], r_iris, image.shape)
-        image[y, x] = 255
-        # Get pixel coords for circle around pupil
-        xp, yp = get_circle_coords([x_pupil, y_pupil], r_pupil, image.shape)
-        image[yp, xp] = 255
+
+        # Get rid of outlier points in order to write out the circular pattern
+        image[y_coordinates, x_coordinates] = 255
+
+        # Get pixel coordinates for the circle around the iris
+        iris_x, iris_y = get_circle_coords(
+            [x_iris, y_iris], r_iris, image.shape)
+        image[iris_y, iris_x] = 255
+
+        # Get pixel coordinates for the circle around the pupil
+        pupil_x, pupil_y = get_circle_coords(
+            [x_pupil, y_pupil], r_pupil, image.shape)
+        image[pupil_y, pupil_x] = 255
+
         # Replace NaNs before performing feature encoding
-        coords = np.where((np.isnan(polar_array)))
+        coords = np.where(np.isnan(polar_array))
         polar_array2 = polar_array
         polar_array2[coords] = 0.5
         avg = np.sum(polar_array2) / \
@@ -136,31 +160,39 @@ class IrisRec:
 
     @classmethod
     def encode(cls, polar_array, noise_array):
-        # Convolve normalised region with Gabor filters
+        # Apply Gabor filtering to the polar array
         filter_bank = gabor_convolve(
-            polar_array,  18, 1, 0.5)
+            polar_array, 18, 1, 0.5)
 
+        # Get the length of the polar array
         length = polar_array.shape[1]
-        template = np.zeros([polar_array.shape[0], 2 * length])
-        h = np.arange(polar_array.shape[0])
 
+        # Initialize the template array
+        template = np.zeros([polar_array.shape[0], 2 * length])
+
+        # Initialize the mask array
         mask = np.zeros(template.shape)
-        eleFilt = filter_bank[:, :]
+
+        # Get the filtered array from the filter bank
+        filtered_array = filter_bank[:, :]
 
         # Phase quantization
-        H1 = np.real(eleFilt) > 0
-        H2 = np.imag(eleFilt) > 0
-        H3 = np.abs(eleFilt) < 0.0001
-        for i in range(length):
-            ja = 2 * i
+        positive_real = np.real(filtered_array) > 0
+        positive_imaginary = np.imag(filtered_array) > 0
+        close_to_zero = np.abs(filtered_array) < 0.0001
 
-            # Construct the biometric template
-            template[:, ja] = H1[:, i]
-            template[:, ja + 1] = H2[:, i]
+        # Iterate over the columns of the template
+        for i in range(length):
+            # Calculate the column index for the template
+            column_index = 2 * i
+
+            # Construct the template
+            template[:, column_index] = positive_real[:, i]
+            template[:, column_index + 1] = positive_imaginary[:, i]
 
             # Create noise mask
-            mask[:, ja] = noise_array[:, i] | H3[:, i]
-            mask[:, ja + 1] = noise_array[:, i] | H3[:, i]
+            mask[:, column_index] = noise_array[:, i] | close_to_zero[:, i]
+            mask[:, column_index + 1] = noise_array[:, i] | close_to_zero[:, i]
 
         return template, mask
 
@@ -180,24 +212,35 @@ class IrisRec:
 
     @classmethod
     def cal_distance(cls, feature1, mask1, feature2, mask2):
-        hamming_distance = np.nan
-        for shifts in range(-8, 9):
-            feature2s = shift_bits(feature1, shifts)
-            mask1s = shift_bits(mask1, shifts)
+        # Initialize the hamming distance
+        distance = np.nan
 
-            mask = np.logical_or(mask1s, mask2)
+        # Iterate over different shifts to find the best match
+        for shift in range(-8, 9):
+            # Shift the bits of feature1 and corresponding mask
+            feature1_shifted = shift_bits(feature1, shift)
+            mask1_shifted = shift_bits(mask1, shift)
+
+            # Compute the combined mask
+            mask = np.logical_or(mask1_shifted, mask2)
+
+            # Count the number of masked bits
             mask_bits = np.sum(mask == 1)
-            total_bits = feature2s.size - mask_bits
 
-            C = np.logical_xor(feature2s, feature2)
+            # Calculate the total number of non-masked bits
+            total_bits = feature2.size - mask_bits
+
+            # Compute the Hamming distance between feature1_shifted and feature2
+            C = np.logical_xor(feature1_shifted, feature2)
             C = np.logical_and(C, np.logical_not(mask))
             bits_diff = np.sum(C == 1)
 
+            # Calculate the Hamming distance ratio
             if total_bits == 0:
-                hamming_distance = np.nan
+                distance = np.nan
             else:
-                hd1 = bits_diff / total_bits
-                if hd1 < hamming_distance or np.isnan(hamming_distance):
-                    hamming_distance = hd1
+                hd = bits_diff / total_bits
+                if hd < distance or np.isnan(distance):
+                    distance = hd
 
-        return hamming_distance
+        return distance

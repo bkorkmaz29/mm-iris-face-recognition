@@ -1,274 +1,232 @@
-import PySimpleGUI as sg
-import numpy as np
+from glob import glob
 import os
-dir_path = 'db'
-folder_names = [name for name in os.listdir(
-    dir_path) if os.path.isdir(os.path.join(dir_path, name))]
+import numpy as np
+from PIL import Image
+import io
+import shutil
+from models.face_rec import FaceRec
+from models.iris_rec import IrisRec
 
 
-def refresh_folder_list(window):
-    folder_names = [name for name in os.listdir(
-        dir_path) if os.path.isdir(os.path.join(dir_path, name))]
-    window['-DB-'].update(values=folder_names)
+class MMR2:
+    def __init__(self, data_dir):
+        self.FACE_TOLERANCE = 0.41
+        self.IRIS_TOLERANCE = 0.41
+        self.FUSION_TOLERANCE = 0.444
+        self.modality = 1
+        self.mode = 2
+        self.data_dir = data_dir
 
+    def set_modality(self, modality):
+        self.modality = modality
 
-def view(controller):
+    def set_mode(self, mode):
+        self.mode = mode
+        if mode == 1:
+            # Precision (F0.5)
+            self.FACE_TOLERANCE = 0.454
+            self.IRIS_TOLERANCE = 0.404
+            self.FUSION_TOLERANCE = 0.424
+        elif mode == 2:
+            # Balanced (F1)
+            self.FACE_TOLERANCE = 0.481
+            self.IRIS_TOLERANCE = 0.414
+            self.FUSION_TOLERANCE = 0.444
+        else:
+            # Recall (F2)
+            self.FACE_TOLERANCE = 0.545
+            self.IRIS_TOLERANCE = 0.424
+            self.FUSION_TOLERANCE = 0.461
 
-    sg.theme('BlueMono')
+    def get_at_index(self, index):
+        files = glob(f"{self.data_dir}/*")
+        if len(files) < index:
+            return -1
+        else:
+            return files[index]
 
-    rec_layout = [
+    def find_id(self, files):
+        id_numbers = []
+        for file in files:
+            id_numbers.append(int(file[3:][:1]))
+        smallest_missing_number = 1
+        while smallest_missing_number in id_numbers:
+            smallest_missing_number += 1
 
-        [
-            sg.Frame('', [
-                [
-                    sg.Column([
-                        [
-                            sg.Frame('Input', layout=[
-                                [
-                                    sg.Text('Face Image', size=(9, 1), font=("Roboto", 10)),  sg.In(
-                                        size=(25, 1), enable_events=True, key='-FACEREC-'), sg.FileBrowse()
-                                ],
-                                [
-                                    sg.Text('Iris Image', size=(9, 1), font=("Roboto", 10)), sg.In(
-                                        size=(25, 1), enable_events=True, key='-IRISREC-'), sg.FileBrowse()
-                                ],
-                                [
-                                    sg.Button('Recognize', size=(10, 1),
-                                              pad=((10, 0), (10, 0)))
-                                ]
-                            ], element_justification='center')
-                        ]
-                    ], element_justification='center', expand_y=True),
+        return smallest_missing_number
 
-                    sg.VSeparator(),
+    def format_name(self, subject):
+        parts = subject.split("-")
+        return f"#{parts[0]} {parts[1].title()} {parts[2].title()}"
 
-                    sg.Frame('Settings', [
-                        [
-                            sg.Column([
-                                [sg.Radio('Multimodal', 'group1', key='-MODALITY1-', enable_events=True,
-                                          default=True, font=("Roboto", 10))],
-                                [sg.Radio('Face Recognition', 'group1', key='-MODALITY2-', enable_events=True,
-                                          font=("Roboto", 10))],
-                                [sg.Radio('Iris Recognition', 'group1', key='-MODALITY3-', enable_events=True,
-                                          font=("Roboto", 10))]
-                            ], element_justification='left', expand_y=True),
-                            sg.VSeparator(),
-                            sg.Column([
-                                [sg.Radio('Precision', 'group2', key="-MODE1-", enable_events=True,
-                                          font=("Roboto", 10))],
-                                [sg.Radio('Balanced', 'group2', key="-MODE2-", enable_events=True,
-                                          default=True, font=("Roboto", 10))],
-                                [sg.Radio('Recall', 'group2', key="-MODE3-", enable_events=True,
-                                          font=("Roboto", 10))]
-                            ], element_justification='left', expand_y=True)
-                        ]
-                    ])
-                ]
-            ], element_justification='center', key='-FRAME', relief='raised')
-        ],
-        [
-            sg.Frame('Results', [
-                [sg.Text("", background_color='white', size=(24, 1), key='-TEXTSEARCHED-', font=("Roboto", 12), justification='center'),
-                 sg.Image(filename='', background_color="white",
-                          key='-FACEIMAGESEARCH-', size=(240, 160)),
-                 sg.Image(filename='', background_color="white", key='-IRISIMAGESEARCH-', size=(240, 160))],
-                [sg.Text("", background_color='white', size=(24, 1), key='-TEXTMATCHED-', font=("Roboto", 12), justification='center'),
-                 sg.Image(filename='', background_color="white",
-                          key='-FACEIMAGEMATCHED-', size=(240, 160)),
-                 sg.Image(filename='', background_color="white", key='-IRISIMAGEMATCHED-', size=(240, 160))]
-            ], border_width=3, size=(800, 600), background_color="white", key='-IMAGEFRAME',
-                element_justification='center', vertical_alignment='center', relief="groove")
-        ]
-    ]
+    def get_info(self, id):
+        file = glob(f"{self.data_dir}/{id}-*")
+        if file:
+            return file[0]
+        else:
+            return ""
 
-    enroll_layout = [
-        [
-            sg.Frame('', layout=[
-                [
-                     sg.Column([
-                         [
-                             sg.Frame('Subject Info', layout=[
-                                 [
-                                     sg.Frame('', layout=[
-                                         [
-                                             sg.Text('Name', size=(7, 1),
-                                                     font=("Roboto", 10)),
-                                             sg.Input(size=(25, 1),
-                                                      key='-NAMEADD-')
-                                         ]
-                                     ], border_width=0, element_justification='center')
-                                 ],
-                                 [
-                                     sg.Frame('', layout=[
-                                         [
-                                             sg.Text('Surname', size=(7, 1),
-                                                     font=("Roboto", 10)),
-                                             sg.Input(size=(25, 1),
-                                                      key='-SURNAMEADD-')
-                                         ]
-                                     ], border_width=0, element_justification='center')
-                                 ]
-                             ], element_justification='center', expand_y=True),
-                             sg.Frame('Input', layout=[
-                                 [
-                                     sg.Text('Face Image', size=(9, 1),
-                                             font=("Roboto", 10)),
-                                     sg.In(size=(25, 1),
-                                           enable_events=True, key='-FACEADD-'),
-                                     sg.FileBrowse()
-                                 ],
-                                 [
-                                     sg.Text('Iris Image', size=(9, 1),
-                                             font=("Roboto", 10)),
-                                     sg.In(size=(25, 1),
-                                           enable_events=True, key='-IRISADD-'),
-                                     sg.FileBrowse()
-                                 ],
+    def get_image(self, dir, full):
+        if dir == "":
+            im = Image.new("RGB", (600, 533), "white")
+        else:
+            im = Image.open(dir)
+            im.resize((320, 240))
+            original_width, original_height = im.size
 
-                             ], element_justification='center')
-                         ]
-                     ], element_justification='center', expand_y=True),
+            crop_size = min(original_width, original_height)
+            # Calculate the left, upper, right, and lower coordinates for the crop
+            left = (original_width - crop_size) // 2
+            upper = (original_height - crop_size) // 2
+            right = left + crop_size
+            lower = upper + crop_size
 
+            # Crop the image
+            im = im.crop((left, upper, right, lower))
 
-                     ],
-                [
-                    sg.Button('Enroll', size=(10, 1),
-                              pad=((0, 0), (7, 6)))
-                ]
-            ], border_width=1, relief='raised', element_justification='center', key='-FRAME-', vertical_alignment='center')
-        ],
+        if full:
+            im.thumbnail((240, 240), Image.Resampling.LANCZOS)
 
-        [
-            sg.Frame('Results', [
-                [sg.Text('', font=('Roboto', 20), size=(
-                     40, 1), justification='center', background_color="white", key='-TEXTADD-')],
-                [sg.Image(filename='', key='-FACEIMAGEADD-', size=(320, 240), background_color='white'),
-                 sg.Image(filename='', key='-IRISIMAGEADD-', size=(320, 240), background_color='white')],
-            ], border_width=3, size=(800, 600), background_color="white", key='-IMAGEFRAME', element_justification='center', vertical_alignment='center', relief="groove")
-        ]
-    ]
+        else:
+            im.thumbnail((160, 160), Image.Resampling.LANCZOS)
 
-    db_layout = [
+        im_rgb = im.convert('RGB')
+        imgbytes = io.BytesIO()
+        im_rgb.save(imgbytes, format='PPM')
+        imgbytes = imgbytes.getvalue()
+        im.close()
+        return imgbytes
 
-        [sg.Frame('', [
-            [sg.Frame('Select Subject', [
-                [sg.Listbox(values=folder_names, size=(40, 4),
-                            key='-DB-', enable_events=True)],
-                [sg.Frame('', [[sg.Button('Display', pad=((0, 0), (0, 0))), sg.Button(
-                    'Delete', pad=((10, 0), (0, 0)))]], element_justification='center', border_width=0, expand_x=True)],
+    def get_db_image(self, subject_dir, full):
+        iris_dir = self.data_dir + subject_dir + "/iris.png"
+        face_dir = self.data_dir + subject_dir + "/face.png"
 
-            ], expand_x=True)]
-        ], border_width=1, relief='raised', element_justification='center', key='-FRAME-')],
+        iris_image = self.get_image(iris_dir, full)
+        face_image = self.get_image(face_dir, full)
 
-        [sg.Frame('Results', [
-            [sg.Text('', font=('Roboto', 20), size=(
-                40, 1), justification='center', background_color='white', key='-TEXTDB-')],
-            [sg.Image(filename='', key='-FACEIMAGEDB-', size=(320, 240), background_color='white'),
-             sg.Image(filename='', key='-IRISIMAGEDB-', size=(320, 240), background_color='white')],
-        ], border_width=3, size=(800, 600), background_color='white', key='-IMAGEFRAME-', element_justification='center',  vertical_alignment='center', relief="groove")]
-    ]
-    app_layout = [
+        return face_image, iris_image
 
-        [
-            [sg.TabGroup([
-                [
-                    sg.Frame('', layout=[
-                        [sg.Button('Exit', button_color=('white', 'red'))]], border_width=0, element_justification='right', expand_x=True),
-                ],
-                [sg.Tab('Recognition', rec_layout, background_color='Ivory',
-                        element_justification='center', key='-TAB-'),
-                    sg.Tab('Enroll', enroll_layout, background_color='Ivory',
-                           element_justification='center', key='-TAB-'),
-                    sg.Tab("Database", db_layout, background_color='Ivory',
-                           element_justification='center', key='-TAB-')
-                 ]
-            ], tab_location='centertop', border_width=5, tab_background_color='Gray', selected_background_color='Ivory', size=(1000, 500))]
-        ],]
+    def get_face_features(self, dir):
+        im = Image.open(dir)
+        im = im.convert('RGB')
+        image = np.array(im)
+        im.close()
 
-    window = sg.Window('app', app_layout, element_justification='center',
-                       location=(0, 0), size=(1200, 600))
-    face_elem_add = window['-FACEIMAGEADD-']
-    iris_elem_add = window['-IRISIMAGEADD-']
-    face_elem_search = window['-FACEIMAGESEARCH-']
-    iris_elem_search = window['-IRISIMAGESEARCH-']
-    face_elem_matched = window['-FACEIMAGEMATCHED-']
-    iris_elem_matched = window['-IRISIMAGEMATCHED-']
-    face_elem_db = window['-FACEIMAGEDB-']
-    iris_elem_db = window['-IRISIMAGEDB-']
-    text_elem_add = window['-TEXTADD-']
-    text_elem_db = window['-TEXTDB-']
-    text_elem_search = window['-TEXTSEARCHED-']
-    text_elem_matched = window['-TEXTMATCHED-']
+        features = FaceRec.get_features(image)
 
-    while True:
-        event, values = window.read(timeout=20)
-        if event == 'Exit' or event == sg.WIN_CLOSED:
-            return
-        elif event == 'Recognize':
-            if values['-MODE1-']:
-                mode = 1
-            elif values['-MODE2-']:
-                mode = 2
-            elif values['-MODE3-']:
-                mode = 3
+        return features
 
-            if values['-MODALITY1-']:
-                if not values['-FACEREC-'] or not values['-IRISREC-']:
-                    sg.popup('Please fill every field.', title='Error')
-                    continue
-                modality = 1
-            elif values['-MODALITY2-']:
-                if not values['-FACEREC-']:
-                    sg.popup('Please fill face image field.', title='Error')
-                    continue
-                modality = 2
-            elif values['-MODALITY3-']:
-                if not values['-IRISREC-']:
-                    sg.popup('Please fill iris image field.', title='Error')
-                    continue
-                modality = 3
+    def get_iris_features(self, dir):
+        template, mask, _ = IrisRec.get_features(dir)
 
-            match_id, match_name, face_img_searched, iris_img_searched, face_img_matched, iris_img_matched = controller.recognize(
-                values["-FACEREC-"], values["-IRISREC-"], mode, modality)
-            face_elem_search.update(data=face_img_searched)
-            iris_elem_search.update(data=iris_img_searched)
+        return template, mask
 
-            if match_id == -1:
-                text_elem_matched.update("No matching person")
-                face_elem_matched.update(data=None)
-                iris_elem_matched.update(data=None)
+    def get_face_scores(self, face_encoding, data_dir):
+        files = glob(os.path.join(data_dir, "*/f*.npy"))
+        result_list = []
+        for file in files:
+            features = np.load(file)
+            result_list.append(FaceRec.cal_distance(face_encoding, features))
+        dist_list = np.array([result_list[i][0]
+                             for i in range(len(result_list))])
 
-            else:
-                face_elem_matched.update(data=face_img_matched)
-                iris_elem_matched.update(data=iris_img_matched)
-                text_elem_search.update("Searched")
-                text_elem_matched.update(match_name)
-        elif event == 'Enroll':
-            if not values['-FACEADD-'] or not values['-IRISADD-'] or not values['-NAMEADD-'] or not values['-SURNAMEADD-']:
-                sg.popup('Please fill every field.', title='Error')
-            else:
-                full_name = values['-NAMEADD-'] + " " + values['-SURNAMEADD-']
+        return dist_list
 
-                id, face_img, iris_img = controller.enroll(values["-FACEADD-"],
-                                                           values["-IRISADD-"], values['-NAMEADD-'], values['-SURNAMEADD-'])
-                face_elem_add.update(data=face_img)
-                iris_elem_add.update(data=iris_img)
-                if id == 0:
-                    text_elem_add.update("No face detected")
+    def face_add(self, image_dir, idx, data_dir):
+        im = Image.open(image_dir)
+        im2 = im.convert('RGB')
+        image = np.array(im2)
+        features = FaceRec.get_features(image)
+        all_zeros = np.all(features == 0)
+        '''
+        if all_zeros:
+            im.close()
+            return 0
+            
+        else:
+        '''
+        basename = "/f" + idx
+        out_file = data_dir + basename + ".npy"
+        np.save(out_file, features)
+        image_dir = data_dir
+        im.save(os.path.join(image_dir, 'face.png'),
+                ICC_PROFILE=im.info.get('icc_profile'))
+        im.close()
+        return 1
+
+    def iris_add(self, dir, idx, data_dir):
+        # Extract iris features
+        template, mask, fn = IrisRec.get_features(dir)
+        basename = "/i" + idx
+        out_file = data_dir + basename
+        # Save iris features
+        np.savez(out_file, template=template, mask=mask)
+        # Save iris image
+        im = Image.open(fn)
+        image_dir = data_dir
+        im.save(os.path.join(image_dir, 'iris.png'))
+        im.close()
+
+    def enroll_subject(self, face_dir, iris_dir, name, surname):
+        files = glob(f"{self.data_dir}/*")
+        id = str(self.find_id(files))
+        save_dir = self.data_dir + id + "-" + name + "-" + surname
+        face_img = self.get_image(face_dir, 1)
+        iris_img = self.get_image(iris_dir, 1)
+
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+            result = self.face_add(
+                face_dir, id, save_dir)
+        '''
+        if not result:
+            os.rmdir(save_dir)
+            return 0
+        else:
+            '''
+        self.iris_add(iris_dir, id, save_dir)
+
+        return id, face_img, iris_img
+
+    def matching(self, face_dir, iris_dir):
+
+        if self.modality == 1:
+            face_encoding = self.get_face_features(face_dir)
+            template, mask = self.get_iris_features(iris_dir)
+            face_scores = self.get_face_scores(face_encoding, self.data_dir)
+            iris_list = self.get_iris_scores(template, mask, self.data_dir)
+            iris_scores = np.array(iris_list)
+            if (face_scores < self.FACE_TOLERANCE).any() and (iris_scores < self.IRIS_TOLERANCE).any():
+                matched_faces = np.where(face_scores < self.FACE_TOLERANCE)[0]
+                print(matched_faces)
+                matched_iris = np.where(iris_scores < self.IRIS_TOLERANCE)[0]
+                print(matched_iris)
+                common_indexes = [
+                    element for element in matched_faces if element in matched_iris]
+                print(common_indexes)
+                if len(common_indexes) != 0:
+                    fusion_scores = self.cal_weighted_product(
+                        face_scores, iris_scores)
+                    if (fusion_scores < self.FUSION_TOLERANCE).any() and np.argmin(fusion_scores) in common_indexes:
+                        return np.argmin(fusion_scores)
                 else:
-                    text_elem_add.update(
-                        "Enrolled: " + full_name + " ID# " + id)
-                refresh_folder_list(window)
+                    return -1
+            else:
+                return -1
 
-        elif event == 'Display':
-            face_img, iris_img, subject = controller.display(
-                values["-DB-"][0])
-            face_elem_db.update(data=face_img)
-            iris_elem_db.update(data=iris_img)
-            text_elem_db.update(subject)
-        elif event == 'Delete':
-            result, userInfo = controller.delete(values["-DB-"][0])
-            face_elem_db.update(data=None)
-            iris_elem_db.update(data=None)
-            text_elem_db.update(userInfo + " deleted")
-            refresh_folder_list(window)
+        elif self.modality == 2:
+            face_encoding = self.get_face_features(face_dir)
+            face_scores = self.get_face_scores(face_encoding, self.data_dir)
+            if (face_scores < self.FACE_TOLERANCE).any():
+                return np.argmin(face_scores)
+            else:
+                return -1
+
+        elif self.modality == 3:
+            template, mask = self.get_iris_features(iris_dir)
+            iris_list = self.get_iris_scores(template, mask, self.data_dir)
+            iris_scores = np.array(iris_list)
+            if (iris_scores < self.IRIS_TOLERANCE).any():
+                return np.argmin(iris_scores)
+            else:
+                return -1

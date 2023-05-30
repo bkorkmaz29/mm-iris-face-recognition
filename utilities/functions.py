@@ -178,6 +178,7 @@ def find_top_eyelid(imsz, iris_image, irl, icl, rowp, rp, ret_top=None):
 
     if ret_top is not None:
         ret_top[0] = mask
+
     return mask
 
 

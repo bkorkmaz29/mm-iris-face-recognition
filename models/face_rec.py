@@ -22,7 +22,6 @@ class FaceRec:
 
     @classmethod
     def get_landmarks(cls, face_image):
-
         face_locations = cls.detect(face_image)
 
         return [cls.face_predictor(face_image, face_location) for face_location in face_locations]
@@ -36,10 +35,6 @@ class FaceRec:
 
     @classmethod
     def cal_distance(cls, face_features1, face_features2):
-        if len(face_features1) == 0:
-            return 1
-
-        if len(face_features2) == 0:
-            return 1
-
+        face_features1 = np.array(face_features1)
+        face_features2 = np.array(face_features2)
         return np.linalg.norm(face_features1 - face_features2, axis=1)
